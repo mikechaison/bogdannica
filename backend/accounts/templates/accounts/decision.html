@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Заявка на реєстрацію — Bogdannica</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #fafaf9; color: #1c1917; margin: 0; padding: 2rem 1rem; }
+    .card { max-width: 32rem; margin: 3rem auto; background: #fff; border: 1px solid #e7e5e4; border-radius: 1rem; padding: 2rem; }
+    h1 { margin: 0 0 1rem; font-size: 1.5rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; margin: 1rem 0 1.5rem; }
+    dt { color: #78716c; }
+    .btn { display: inline-block; padding: .6rem 1.2rem; border-radius: .6rem; border: 0; font-weight: 600; cursor: pointer; font-size: 1rem; }
+    .approve { background: #16a34a; color: #fff; }
+    .reject { background: #dc2626; color: #fff; }
+    .note { color: #78716c; font-size: .9rem; }
+    .error { color: #b91c1c; }
+    .ok { color: #15803d; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    {% if error %}
+      <h1 class="error">Помилка</h1>
+      <p>{{ error }}</p>
+    {% elif done %}
+      <h1 class="ok">Готово</h1>
+      <p>
+        Заявку користувача <strong>{{ application.username }}</strong>
+        {% if decision == "approve" %}схвалено. Користувач тепер може увійти на сайт.{% else %}відхилено. Обліковий запис видалено.{% endif %}
+      </p>
+    {% elif already_decided %}
+      <h1>Заявку вже розглянуто</h1>
+      <p>Статус заявки користувача <strong>{{ application.username }}</strong>: {{ application.get_status_display }}.</p>
+    {% else %}
+      <h1>{% if decision == "approve" %}Схвалити заявку?{% else %}Відхилити заявку?{% endif %}</h1>
+      <dl>
+        <dt>Користувач</dt><dd>{{ application.username }}</dd>
+        <dt>Пошта</dt><dd>{{ application.email }}</dd>
+        <dt>Подано</dt><dd>{{ application.created_at|date:"d.m.Y H:i" }}</dd>
+      </dl>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn {% if decision == 'approve' %}approve{% else %}reject{% endif %}">
+          {% if decision == "approve" %}Так, схвалити{% else %}Так, відхилити{% endif %}
+        </button>
+      </form>
+      <p class="note">
+        {% if decision == "approve" %}Після схвалення користувач зможе увійти та додавати статті.{% else %}Після відхилення обліковий запис буде видалено.{% endif %}
+      </p>
+    {% endif %}
+  </div>
+</body>
+</html>
