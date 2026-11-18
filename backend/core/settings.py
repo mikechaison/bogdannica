@@ -56,6 +56,7 @@ INSTALLED_APPS: list[str] = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "anymail",
     # Local
     "accounts",
     "memes",
@@ -264,13 +265,30 @@ FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/
 
 
 # E-mail — registration applications are sent to superusers.
-# Defaults to the console backend in development; set EMAIL_HOST to use SMTP.
+#
+# Backend is chosen from the environment, first match wins:
+#   BREVO_API_KEY   -> Brevo HTTP API (free tier, works where SMTP ports are blocked)
+#   RESEND_API_KEY  -> Resend HTTP API
+#   EMAIL_HOST      -> plain SMTP
+#   otherwise       -> console (prints the e-mail to the log)
 
 ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "")
 DEFAULT_FROM_EMAIL: str = os.getenv("DEFAULT_FROM_EMAIL", "Bogdannica <noreply@bogdannica.local>")
 
+# Never let a slow or blocked mail server hold a request longer than this (seconds).
+EMAIL_TIMEOUT: int = int(os.getenv("EMAIL_TIMEOUT", "10"))
+
+BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "")
+RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
 EMAIL_HOST: str = os.getenv("EMAIL_HOST", "")
-if EMAIL_HOST:
+
+if BREVO_API_KEY:
+    EMAIL_BACKEND = "anymail.backends.brevo.EmailBackend"
+    ANYMAIL = {"BREVO_API_KEY": BREVO_API_KEY, "REQUESTS_TIMEOUT": EMAIL_TIMEOUT}
+elif RESEND_API_KEY:
+    EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
+    ANYMAIL = {"RESEND_API_KEY": RESEND_API_KEY, "REQUESTS_TIMEOUT": EMAIL_TIMEOUT}
+elif EMAIL_HOST:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
     EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
     EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")

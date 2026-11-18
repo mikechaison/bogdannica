@@ -15,3 +15,6 @@ whitenoise==6.12.0
 dj-database-url==3.1.2
 psycopg[binary]==3.3.9
 django-storages[s3]==1.14.6
+
+# E-mail over HTTP (works on hosts that block SMTP)
+django-anymail[brevo,resend]==15.2
