@@ -111,6 +111,12 @@ if DATABASE_URL:
             ssl_require=env_bool("DATABASE_SSL_REQUIRE", default=False),
         )
     }
+    if not DATABASES["default"].get("NAME"):
+        raise RuntimeError(
+            "DATABASE_URL is set but is not a valid connection string "
+            "(expected e.g. postgres://user:password@host:5432/dbname). "
+            "Unset it to use local SQLite."
+        )
 else:
     DATABASES = {
         "default": {
@@ -160,8 +166,11 @@ if USE_S3_MEDIA:
     AWS_S3_REGION_NAME: str = os.getenv("AWS_S3_REGION_NAME", "auto")
     # Custom endpoint for non-AWS providers, e.g. https://<account>.r2.cloudflarestorage.com
     AWS_S3_ENDPOINT_URL: str | None = os.getenv("AWS_S3_ENDPOINT_URL") or None
-    # Public hostname files are served from (CDN or public bucket domain), no scheme.
-    AWS_S3_CUSTOM_DOMAIN: str | None = os.getenv("AWS_S3_CUSTOM_DOMAIN") or None
+    # Public hostname files are served from (CDN or public bucket domain).
+    # A pasted scheme or trailing slash is tolerated and stripped.
+    _custom_domain = os.getenv("AWS_S3_CUSTOM_DOMAIN", "").strip()
+    _custom_domain = _custom_domain.removeprefix("https://").removeprefix("http://").rstrip("/")
+    AWS_S3_CUSTOM_DOMAIN: str | None = _custom_domain or None
     AWS_LOCATION: str = os.getenv("AWS_LOCATION", "media")
     AWS_DEFAULT_ACL = None
     AWS_S3_FILE_OVERWRITE = False
