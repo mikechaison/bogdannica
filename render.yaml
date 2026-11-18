@@ -1,0 +1,50 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Creates the Django API + a managed Postgres database. Media uses an S3-compatible
+# bucket (django-storages); fill in the AWS_* vars in the Render dashboard.
+services:
+  - type: web
+    name: bogdannica-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: bash build.sh
+    startCommand: gunicorn core.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 60 --access-logfile - --error-logfile -
+    healthCheckPath: /api/
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.8
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bogdannica-db
+          property: connectionString
+      # Fill these in the dashboard after the first deploy:
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false   # e.g. bogdannica-api.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false   # e.g. https://bogdannica.vercel.app
+      - key: BACKEND_URL
+        sync: false   # e.g. https://bogdannica-api.onrender.com
+      - key: FRONTEND_URL
+        sync: false   # e.g. https://bogdannica.vercel.app
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_REGION_NAME
+        sync: false
+      - key: AWS_S3_ENDPOINT_URL
+        sync: false
+      - key: AWS_S3_CUSTOM_DOMAIN
+        sync: false
+
+databases:
+  - name: bogdannica-db
+    plan: free
+    databaseName: bogdannica
+    user: bogdannica

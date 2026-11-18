@@ -5,8 +5,10 @@ Django settings for the Encyclopedia Bogdannica backend (project ``core``).
 from datetime import timedelta
 from pathlib import Path
 
-from dotenv import load_dotenv
 import os
+
+import dj_database_url
+from dotenv import load_dotenv
 
 BASE_DIR: Path = Path(__file__).resolve().parent.parent
 
@@ -35,6 +37,9 @@ SECRET_KEY: str = os.getenv(
 
 DEBUG: bool = env_bool("DJANGO_DEBUG", default=True)
 
+if not DEBUG and SECRET_KEY.startswith("django-insecure-"):
+    raise RuntimeError("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false.")
+
 ALLOWED_HOSTS: list[str] = env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
 
@@ -58,6 +63,8 @@ INSTALLED_APPS: list[str] = [
 
 MIDDLEWARE: list[str] = [
     "django.middleware.security.SecurityMiddleware",
+    # WhiteNoise serves collected static files (admin CSS/JS) without a separate web server.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     # CorsMiddleware must come before any middleware that can generate responses.
     "corsheaders.middleware.CorsMiddleware",
@@ -89,13 +96,28 @@ WSGI_APPLICATION = "core.wsgi.application"
 
 
 # Database
+#
+# Production sets DATABASE_URL (e.g. postgres://user:pass@host:5432/dbname) and the
+# managed database is used. Without it, development falls back to local SQLite.
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=env_bool("DATABASE_SSL_REQUIRE", default=False),
+        )
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation
@@ -121,20 +143,47 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Uploaded images (Article.image, Image files) live under backend/media/.
+# Uploaded images (Article.image, Image files).
+#
+# When AWS_STORAGE_BUCKET_NAME is set, uploads go to an S3-compatible bucket via
+# django-storages (AWS S3, Cloudflare R2, Backblaze B2, MinIO, ...). Otherwise they
+# live under backend/media/ and are served by Django itself in development only.
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-STORAGES = {
-    "default": {
+AWS_STORAGE_BUCKET_NAME: str = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
+USE_S3_MEDIA: bool = bool(AWS_STORAGE_BUCKET_NAME)
+
+if USE_S3_MEDIA:
+    AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    AWS_S3_REGION_NAME: str = os.getenv("AWS_S3_REGION_NAME", "auto")
+    # Custom endpoint for non-AWS providers, e.g. https://<account>.r2.cloudflarestorage.com
+    AWS_S3_ENDPOINT_URL: str | None = os.getenv("AWS_S3_ENDPOINT_URL") or None
+    # Public hostname files are served from (CDN or public bucket domain), no scheme.
+    AWS_S3_CUSTOM_DOMAIN: str | None = os.getenv("AWS_S3_CUSTOM_DOMAIN") or None
+    AWS_LOCATION: str = os.getenv("AWS_LOCATION", "media")
+    AWS_DEFAULT_ACL = None
+    AWS_S3_FILE_OVERWRITE = False
+    # Public bucket => plain URLs; private bucket => signed URLs that expire.
+    AWS_QUERYSTRING_AUTH: bool = env_bool("AWS_QUERYSTRING_AUTH", default=False)
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
+
+    _default_storage = {"BACKEND": "storages.backends.s3.S3Storage"}
+else:
+    _default_storage = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
         "OPTIONS": {
             "location": MEDIA_ROOT,
             "base_url": MEDIA_URL,
         },
-    },
+    }
+
+STORAGES = {
+    "default": _default_storage,
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        # Hashed filenames + gzip/brotli pre-compression, served by WhiteNoise.
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
 
@@ -154,6 +203,33 @@ CORS_ALLOWED_ORIGINS: list[str] = env_list(
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS: list[str] = CORS_ALLOWED_ORIGINS
+
+
+# Security (production only; the host's reverse proxy terminates TLS)
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = False
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
+
+
+# Logging — plain stdout so the hosting platform captures it.
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": os.getenv("DJANGO_LOG_LEVEL", "INFO")},
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+    },
+}
 
 
 # Django REST Framework
