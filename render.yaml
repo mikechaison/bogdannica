@@ -42,6 +42,21 @@ services:
         sync: false
       - key: AWS_S3_CUSTOM_DOMAIN
         sync: false
+      # E-mail (registration applications go to superusers). Gmail: use an App Password.
+      - key: EMAIL_HOST
+        sync: false   # e.g. smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "true"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false   # e.g. Bogdannica <you@gmail.com>
+      - key: ADMIN_EMAIL
+        sync: false   # optional extra recipient
 
 databases:
   - name: bogdannica-db
