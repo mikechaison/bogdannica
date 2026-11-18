@@ -10,6 +10,7 @@
     h1 { margin: 0 0 1rem; font-size: 1.5rem; }
     dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; margin: 1rem 0 1.5rem; }
     dt { color: #78716c; }
+    .actions { display: flex; gap: .75rem; flex-wrap: wrap; }
     .btn { display: inline-block; padding: .6rem 1.2rem; border-radius: .6rem; border: 0; font-weight: 600; cursor: pointer; font-size: 1rem; }
     .approve { background: #16a34a; color: #fff; }
     .reject { background: #dc2626; color: #fff; }
@@ -33,21 +34,20 @@
       <h1>Заявку вже розглянуто</h1>
       <p>Статус заявки користувача <strong>{{ application.username }}</strong>: {{ application.get_status_display }}.</p>
     {% else %}
-      <h1>{% if decision == "approve" %}Схвалити заявку?{% else %}Відхилити заявку?{% endif %}</h1>
+      <h1>Заявка на реєстрацію</h1>
       <dl>
         <dt>Користувач</dt><dd>{{ application.username }}</dd>
         <dt>Пошта</dt><dd>{{ application.email }}</dd>
         <dt>Подано</dt><dd>{{ application.created_at|date:"d.m.Y H:i" }}</dd>
       </dl>
-      <form method="post">
+      {% if form_error %}<p class="error">{{ form_error }}</p>{% endif %}
+      <form method="post" class="actions">
         {% csrf_token %}
-        <button type="submit" class="btn {% if decision == 'approve' %}approve{% else %}reject{% endif %}">
-          {% if decision == "approve" %}Так, схвалити{% else %}Так, відхилити{% endif %}
-        </button>
+        <button type="submit" name="decision" value="approve" class="btn approve">Схвалити</button>
+        <button type="submit" name="decision" value="reject" class="btn reject"
+                onclick="return confirm('Відхилити заявку? Обліковий запис буде видалено.');">Відхилити</button>
       </form>
-      <p class="note">
-        {% if decision == "approve" %}Після схвалення користувач зможе увійти та додавати статті.{% else %}Після відхилення обліковий запис буде видалено.{% endif %}
-      </p>
+      <p class="note">Після схвалення користувач зможе увійти та додавати статті. Після відхилення обліковий запис буде видалено.</p>
     {% endif %}
   </div>
 </body>

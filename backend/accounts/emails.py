@@ -8,7 +8,7 @@ from django.core.mail import send_mail
 from django.urls import reverse
 
 from .models import RegistrationApplication
-from .tokens import make_decision_token
+from .tokens import make_review_token
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +26,8 @@ def superuser_emails() -> list[str]:
     return sorted(emails)
 
 
-def _decision_url(application: RegistrationApplication, decision: str) -> str:
-    token = make_decision_token(application.pk, decision)  # type: ignore[arg-type]
+def _review_url(application: RegistrationApplication) -> str:
+    token = make_review_token(application.pk)  # type: ignore[arg-type]
     path = reverse("accounts:application_decide", kwargs={"token": token})
     return f"{settings.BACKEND_URL}{path}"
 
@@ -38,17 +38,15 @@ def send_application_to_admins(application: RegistrationApplication) -> bool:
         logger.warning("Registration application #%s: no superuser email configured.", application.pk)
         return False
 
-    approve_url = _decision_url(application, "approve")
-    reject_url = _decision_url(application, "reject")
+    review_url = _review_url(application)
     subject = f"[Bogdannica] Нова заявка на реєстрацію: {application.username}"
     body = (
         "Надійшла нова заявка на реєстрацію.\n\n"
         f"Ім’я користувача: {application.username}\n"
         f"Електронна пошта: {application.email}\n"
         f"Дата: {application.created_at:%d.%m.%Y %H:%M}\n\n"
-        f"Схвалити:  {approve_url}\n"
-        f"Відхилити: {reject_url}\n\n"
-        "Посилання дійсні 7 днів. Заявку також можна розглянути в адмін-панелі."
+        f"Розглянути заявку (схвалити або відхилити): {review_url}\n\n"
+        "Посилання дійсне 7 днів. Заявку також можна розглянути в адмін-панелі."
     )
     send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=False)
     return True

@@ -14,7 +14,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .emails import send_application_to_admins, send_decision_to_applicant
 from .models import RegistrationApplication
 from .serializers import LoginSerializer, RegisterSerializer, UserSerializer
-from .tokens import read_decision_token
+from .tokens import DECISIONS, read_review_token
 
 logger = logging.getLogger(__name__)
 
@@ -66,27 +66,30 @@ class MeView(generics.RetrieveAPIView):
 @require_http_methods(["GET", "POST"])
 def application_decide(request: HttpRequest, token: str) -> HttpResponse:
     """
-    Opened from the e-mail sent to superusers.
+    Opened from the single link in the e-mail sent to superusers.
 
-    GET shows the application and a confirmation button (so link prefetchers cannot
-    approve by accident); POST applies the decision encoded in the signed token.
+    GET shows the application with two buttons (approve / reject), so link
+    prefetchers cannot decide by accident; POST applies the chosen decision.
     """
-    payload = read_decision_token(token)
-    if payload is None:
+    application_id = read_review_token(token)
+    if application_id is None:
         return render(request, "accounts/decision.html", {"error": "Посилання недійсне або застаріле."}, status=400)
 
-    application = RegistrationApplication.objects.filter(pk=payload["application_id"]).first()
+    application = RegistrationApplication.objects.filter(pk=application_id).first()
     if application is None:
         return render(request, "accounts/decision.html", {"error": "Заявку не знайдено."}, status=404)
 
-    decision = payload["decision"]
-    context = {"application": application, "decision": decision}
+    context: dict[str, object] = {"application": application}
 
     if not application.is_pending:
         context["already_decided"] = True
         return render(request, "accounts/decision.html", context)
 
     if request.method == "POST":
+        decision = request.POST.get("decision", "")
+        if decision not in DECISIONS:
+            context["form_error"] = "Оберіть рішення: схвалити або відхилити."
+            return render(request, "accounts/decision.html", context, status=400)
         decided_by = request.user if request.user.is_authenticated else None
         if decision == "approve":
             application.approve(decided_by=decided_by)
@@ -94,5 +97,6 @@ def application_decide(request: HttpRequest, token: str) -> HttpResponse:
             application.reject(decided_by=decided_by)
         send_decision_to_applicant(application)
         context["done"] = True
+        context["decision"] = decision
 
     return render(request, "accounts/decision.html", context)
