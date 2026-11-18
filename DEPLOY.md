@@ -31,8 +31,11 @@ with read/write on that bucket. Note:
 
    Optional e-mail vars are listed in `backend/.env.example`.
 4. Deploy. `build.sh` installs deps, runs `collectstatic` and `migrate`.
-5. Create the first admin: service **Shell** tab →
-   `python manage.py createsuperuser`.
+5. Create the first admin. The free plan has no Shell tab, so add three
+   env vars in the **Environment** tab: `DJANGO_SUPERUSER_USERNAME`,
+   `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD`. Saving triggers a
+   redeploy and `build.sh` creates the account. Then delete the three vars.
+   (Paid plans can instead run `python manage.py createsuperuser` in **Shell**.)
 
 Any other host (Railway, Fly.io, a VPS) works too: run `build.sh`, then start
 with the `web` command from `backend/Procfile`, with the same env vars.
